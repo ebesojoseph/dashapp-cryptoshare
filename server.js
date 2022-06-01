@@ -16,6 +16,10 @@ app.use(
     keys: ["key1", "key2"],
   })
 );
+
+app.get("/createid", async (req, res) => {
+  res.render("createid");
+});
 app.get("/importwallet", () => {
   res.render("importwallet");
 });
@@ -33,6 +37,30 @@ app.post("/index", async (req, res) => {
   } else {
     res.redirect("/connectwallet");
   }
+});
+app.post("/createid", async (req, res) => {
+  const { mnemonic, address } = req.body;
+  const clientOpts = {
+    network: "testnet",
+    wallet: {
+      mnemonic: mnemonic,
+      unsafeOptions: {
+        skipSynchronizationBeforeHeight: 650000, // only sync from early-2022
+      },
+    },
+  };
+  const client = new Dash.Client(clientOpts);
+
+  const createIdentity = async () => {
+    return client.platform.identities.register();
+  };
+
+  createIdentity()
+    .then((d) => {
+      console.log("Identity:\n", d.toJSON());
+    })
+    .catch((e) => console.error("Something went wrong:\n", e))
+    .finally(() => client.disconnect());
 });
 
 app.get("/createwallet", async (req, res) => {

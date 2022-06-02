@@ -29,14 +29,96 @@ app.get("/", (req, res) => {
 });
 
 app.get("/connectwallet", (req, res) => {
+  if (req.session.auth) {
+    res.redirect("/");
+  }
   res.render("connect_wallet");
+});
+app.post("/importwallet", async (req, res) => {
+  const { mnemonic } = req.body;
+  const clientOpts = {
+    network: "testnet",
+    wallet: {
+      mnemonic: mnemonic, // this indicates that we want a new wallet to be generated
+      // if you want to get a new address for an existing wallet
+      // replace 'null' with an existing wallet mnemonic
+      unsafeOptions: {
+        skipSynchronizationBeforeHeight: 650000, // only sync from early-2022
+      },
+    },
+  };
+
+  const client = new Dash.Client(clientOpts);
+
+  const createWallet = async () => {
+    const account = await client.getWalletAccount();
+
+    const mnemonic = client.wallet.exportWallet();
+    const address = account.getUnusedAddress();
+
+    req.session.user = {
+      address: address.address,
+      mnemonic: mnemonic,
+    };
+
+    console.log("Mnemonic:", client.wallet);
+    console.log("Unused address:");
+
+    res.render("/");
+  };
+
+  createWallet()
+    .catch((e) => console.error("Something went wrong:\n", e))
+    .finally(() => client.disconnect());
+
+  // Handle wallet async errors
+  client.on("error", (error, context) => {
+    console.error(`Client error: ${error.name}`);
+    console.error(context);
+  });
+});
+
+app.get("/success", (req, res) => {
+  res.render("success");
 });
 
 app.post("/index", async (req, res) => {
-  if (req.session.auth) {
-  } else {
+  const {domain} = req.body;
+
+  if (!req.session.user.mnemonic) {
     res.redirect("/connectwallet");
   }
+
+  if (!req.session.user.id) {
+    res.redirect("/createid");
+  }
+  const clientOpts = {
+    wallet: {
+      mnemonic: req.session.user.mnemonic,
+      unsafeOptions: {
+        skipSynchronizationBeforeHeight: 650000, // only sync from early-2022
+      },
+    },
+  };
+  const client = new Dash.Client(clientOpts);
+  
+  const registerName = async () => {
+    const { platform } = client;
+  
+    const identity = await platform.identities.get(req.session.user.id);
+    const nameRegistration = await platform.names.register(
+      `${domain.split("."[0])}.dash`,
+      { dashUniqueIdentityId: identity.getId() },
+      identity,
+    );
+  
+    return nameRegistration;
+  };
+  
+  registerName()
+    .then((d) => console.log('Name registered:\n', d.toJSON()))
+    .catch((e) => console.error('Something went wrong:\n', e))
+    .finally(() => client.disconnect());
 });
 app.post("/createid", async (req, res) => {
   const { mnemonic, address } = req.body;
@@ -82,8 +164,13 @@ app.get("/createwallet", async (req, res) => {
 
     const mnemonic = client.wallet.exportWallet();
     const address = account.getUnusedAddress();
-    console.log("Mnemonic:", mnemonic);
+    console.log("Mnemonic:", account);
     console.log("Unused address:");
+
+    req.session.user = {
+      address: address.address,
+      mnemonic: mnemonic,
+    };
 
     res.render("createwallet", { mnemonic, address: address.address });
   };

@@ -38,3 +38,17 @@ module.exports.createWallet = async (nemonic) => {
   };
 ```
 
+### Creating an Username
+
+```
+createIdentity()
+    .then((d) => {
+      console.log("Identity:\n", d.toJSON());
+    })
+    .catch((e) => console.error("Something went wrong:\n", e))
+    .finally(() => client.disconnect());
+});
+```
+
+
+
